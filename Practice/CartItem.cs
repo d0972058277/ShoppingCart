@@ -61,32 +61,40 @@ public class CartItem : Entity<Guid>
     }
 
     /// <summary>
-    /// 建立新的購物車項目。
+    /// 決定是否可以建立新的購物車項目。
     /// </summary>
-    public static Result<CartItem, Error> Create(int productId, int quantity, decimal unitPrice)
+    public static UnitResult<Error> DecideCreate(int productId, int quantity, decimal unitPrice)
     {
         // Validation 1: 檢查商品 ID
         if (productId <= 0)
-            return Result.Failure<CartItem, Error>(Errors.InvalidProductId);
+            return UnitResult.Failure<Error>(Errors.InvalidProductId);
 
         // Validation 2: 檢查數量範圍
         if (quantity < MinQuantity)
-            return Result.Failure<CartItem, Error>(Errors.InvalidQuantity);
+            return UnitResult.Failure<Error>(Errors.InvalidQuantity);
 
         if (quantity > MaxQuantity)
-            return Result.Failure<CartItem, Error>(Errors.MaxItemQuantityExceeded);
+            return UnitResult.Failure<Error>(Errors.MaxItemQuantityExceeded);
 
         // Validation 3: 檢查單價範圍
         if (unitPrice < MinUnitPrice)
-            return Result.Failure<CartItem, Error>(Errors.InvalidUnitPrice);
+            return UnitResult.Failure<Error>(Errors.InvalidUnitPrice);
 
         if (unitPrice > MaxUnitPrice)
-            return Result.Failure<CartItem, Error>(Errors.MaxUnitPriceExceeded);
+            return UnitResult.Failure<Error>(Errors.MaxUnitPriceExceeded);
 
         // Validation 4: 檢查單價小數位數（最多 2 位）
         if (Math.Round(unitPrice, 2) != unitPrice)
-            return Result.Failure<CartItem, Error>(Errors.InvalidUnitPriceDecimalPlaces);
+            return UnitResult.Failure<Error>(Errors.InvalidUnitPriceDecimalPlaces);
 
+        return UnitResult.Success<Error>();
+    }
+
+    /// <summary>
+    /// 套用建立購物車項目（不可失敗）。
+    /// </summary>
+    public static CartItem ApplyCreate(int productId, int quantity, decimal unitPrice)
+    {
         return new CartItem(productId, quantity, unitPrice);
     }
 
@@ -109,21 +117,9 @@ public class CartItem : Entity<Guid>
     /// <summary>
     /// 套用數量變更（不可失敗）。
     /// </summary>
-    private void ApplyChangeQuantity(int quantity)
+    public void ApplyChangeQuantity(int quantity)
     {
         Quantity = quantity;
-    }
-
-    /// <summary>
-    /// 變更商品數量（結合 Decide 和 Apply）。
-    /// </summary>
-    public UnitResult<Error> ChangeQuantity(int quantity)
-    {
-        var result = DecideChangeQuantity(quantity);
-        if (result.IsSuccess)
-            ApplyChangeQuantity(quantity);
-
-        return result;
     }
 
     /// <summary>
@@ -152,21 +148,9 @@ public class CartItem : Entity<Guid>
     /// <summary>
     /// 套用折扣變更（不可失敗）。
     /// </summary>
-    private void ApplyDiscountChange(decimal discountPercentage)
+    public void ApplyDiscountChange(decimal discountPercentage)
     {
         DiscountPercentage = discountPercentage;
-    }
-
-    /// <summary>
-    /// 套用折扣（結合 Decide 和 Apply）。
-    /// </summary>
-    public UnitResult<Error> ApplyDiscount(decimal discountPercentage)
-    {
-        var result = DecideApplyDiscount(discountPercentage);
-        if (result.IsSuccess)
-            ApplyDiscountChange(discountPercentage);
-
-        return result;
     }
 
     /// <summary>
@@ -191,21 +175,9 @@ public class CartItem : Entity<Guid>
     /// <summary>
     /// 套用單價更新（不可失敗）。
     /// </summary>
-    private void ApplyUpdateUnitPrice(decimal newUnitPrice)
+    public void ApplyUpdateUnitPrice(decimal newUnitPrice)
     {
         UnitPrice = newUnitPrice;
-    }
-
-    /// <summary>
-    /// 更新單價（用於價格變動時，結合 Decide 和 Apply）。
-    /// </summary>
-    public UnitResult<Error> UpdateUnitPrice(decimal newUnitPrice)
-    {
-        var result = DecideUpdateUnitPrice(newUnitPrice);
-        if (result.IsSuccess)
-            ApplyUpdateUnitPrice(newUnitPrice);
-
-        return result;
     }
 
     /// <summary>

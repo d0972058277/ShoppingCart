@@ -69,23 +69,24 @@ public class ShoppingCart : AggregateRoot<Guid>
         if (_items.Count >= MaxItemsCount)
             return UnitResult.Failure<Error>(Errors.MaxItemsCountExceeded);
 
-        // Validation 4: 建立 CartItem（內部會驗證 productId, quantity, unitPrice）
-        var createResult = CartItem.Create(productId, quantity, unitPrice);
-        if (createResult.IsFailure)
-            return UnitResult.Failure<Error>(createResult.Error);
-
-        var newItem = createResult.Value;
+        // Validation 4: 驗證是否可以建立 CartItem（使用 Decide，不建立物件）
+        var decideResult = CartItem.DecideCreate(productId, quantity, unitPrice);
+        if (decideResult.IsFailure)
+            return UnitResult.Failure<Error>(decideResult.Error);
 
         // Validation 5: 檢查總數量上限
         if (TotalQuantity + quantity > MaxTotalQuantity)
             return UnitResult.Failure<Error>(Errors.MaxTotalQuantityExceeded);
 
-        // Validation 6: 檢查總金額上限
-        var newTotalPrice = _totalPrice + newItem.TotalPrice;
+        // Validation 6: 計算並檢查總金額上限
+        var discountedUnitPrice = unitPrice; // 新項目折扣為 0
+        var itemTotalPrice = discountedUnitPrice * quantity;
+        var newTotalPrice = _totalPrice + itemTotalPrice;
         if (newTotalPrice > MaxTotalPrice)
             return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
 
-        // 加入商品並更新總金額
+        // 所有驗證通過，建立並加入商品
+        var newItem = CartItem.ApplyCreate(productId, quantity, unitPrice);
         _items.Add(newItem);
         _totalPrice = newTotalPrice;
 
@@ -114,33 +115,28 @@ public class ShoppingCart : AggregateRoot<Guid>
         if (item is null)
             return UnitResult.Failure<Error>(Errors.ItemNotFound);
 
-        // 保存舊值用於復原
+        // 保存舊值用於計算
         var oldQuantity = item.Quantity;
         var oldTotalPrice = item.TotalPrice;
 
-        // Validation 3: 變更數量（CartItem 內部會驗證數量是否有效）
-        var changeResult = item.ChangeQuantity(quantity);
-        if (changeResult.IsFailure)
-            return UnitResult.Failure<Error>(changeResult.Error);
+        // Validation 3: 驗證數量變更是否有效（使用 Decide，不改變狀態）
+        var decideResult = item.DecideChangeQuantity(quantity);
+        if (decideResult.IsFailure)
+            return UnitResult.Failure<Error>(decideResult.Error);
 
         // Validation 4: 檢查變更後的總數量是否超過上限
-        if (TotalQuantity > MaxTotalQuantity)
-        {
-            // 復原變更
-            item.ChangeQuantity(oldQuantity);
+        var quantityDiff = quantity - oldQuantity;
+        if (TotalQuantity + quantityDiff > MaxTotalQuantity)
             return UnitResult.Failure<Error>(Errors.MaxTotalQuantityExceeded);
-        }
 
-        // Validation 5: 檢查變更後的總金額是否超過上限
-        var newTotalPrice = _totalPrice - oldTotalPrice + item.TotalPrice;
+        // Validation 5: 計算變更後的總金額並檢查是否超過上限
+        var newItemTotalPrice = item.DiscountedUnitPrice * quantity;
+        var newTotalPrice = _totalPrice - oldTotalPrice + newItemTotalPrice;
         if (newTotalPrice > MaxTotalPrice)
-        {
-            // 復原變更
-            item.ChangeQuantity(oldQuantity);
             return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
-        }
 
-        // 更新總金額
+        // 所有驗證通過，套用變更
+        item.ApplyChangeQuantity(quantity);
         _totalPrice = newTotalPrice;
 
         AddDomainEvent(
@@ -199,12 +195,13 @@ public class ShoppingCart : AggregateRoot<Guid>
         // 保存舊值
         var oldTotalPrice = item.TotalPrice;
 
-        // Validation 3: 套用折扣（CartItem 內部會驗證折扣比例）
-        var applyResult = item.ApplyDiscount(discountPercentage);
-        if (applyResult.IsFailure)
-            return UnitResult.Failure<Error>(applyResult.Error);
+        // Validation 3: 驗證折扣是否有效（使用 Decide，不改變狀態）
+        var decideResult = item.DecideApplyDiscount(discountPercentage);
+        if (decideResult.IsFailure)
+            return UnitResult.Failure<Error>(decideResult.Error);
 
-        // 更新總金額
+        // 所有驗證通過，套用變更
+        item.ApplyDiscountChange(discountPercentage);
         _totalPrice = _totalPrice - oldTotalPrice + item.TotalPrice;
 
         AddDomainEvent(
