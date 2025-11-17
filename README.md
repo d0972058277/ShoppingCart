@@ -313,18 +313,18 @@ public void Apply_WithEventSequence_ShouldReconstructState()
 
 ## 設計優點
 
-✅ **原子性** - 要麼所有驗證都過，要麼完全不變
-✅ **一致性** - 事件永遠代表有效的狀態轉換
-✅ **可預測性** - 呼叫端可以信任 `IsSuccess` 的結果
-✅ **可重播性** - 事件序列保證能重建有效狀態
-✅ **可測試性** - 純函數易於測試，事件可重播驗證
-✅ **可讀性** - 驗證邏輯清晰，流程一目了然
-✅ **可維護性** - 責任分離清晰，易於擴展
+- ✅ **原子性** - 要麼所有驗證都過，要麼完全不變
+- ✅ **一致性** - 事件永遠代表有效的狀態轉換
+- ✅ **可預測性** - 呼叫端可以信任 `IsSuccess` 的結果
+- ✅ **可重播性** - 事件序列保證能重建有效狀態
+- ✅ **可測試性** - 純函數易於測試，事件可重播驗證
+- ✅ **可讀性** - 驗證邏輯清晰，流程一目了然
+- ✅ **可維護性** - 責任分離清晰，易於擴展
 
 ## 使用技術
 
 - C# 12
-- .NET 8
+- .NET 10
 - [CSharpFunctionalExtensions](https://github.com/vkhorikov/CSharpFunctionalExtensions) - Railway Oriented Programming
 - xUnit - 單元測試
 
