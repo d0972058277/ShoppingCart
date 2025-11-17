@@ -5,7 +5,7 @@ namespace Practice;
 /// <summary>
 /// 購物車聚合根。
 /// </summary>
-public class ShoppingCart : AggregateRoot<Guid>
+public class ShoppingCart : EventSourcedAggregateRoot<Guid>
 {
     private const int MaxItemsCount = 50;
     private const int MaxTotalQuantity = 999;
@@ -85,16 +85,13 @@ public class ShoppingCart : AggregateRoot<Guid>
         if (newTotalPrice > MaxTotalPrice)
             return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
 
-        // 所有驗證通過，建立並加入商品
-        var newItem = CartItem.ApplyCreate(productId, quantity, unitPrice);
-        _items.Add(newItem);
-        _totalPrice = newTotalPrice;
-
-        AddDomainEvent(
+        // 所有驗證通過，發布事件（事件會透過 Apply 修改狀態）
+        RaiseEvent(
             new CartItemAddedDomainEvent(
                 CartId: Id,
                 ProductId: productId,
-                Quantity: quantity
+                Quantity: quantity,
+                UnitPrice: unitPrice
             )
         );
 
@@ -135,11 +132,8 @@ public class ShoppingCart : AggregateRoot<Guid>
         if (newTotalPrice > MaxTotalPrice)
             return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
 
-        // 所有驗證通過，套用變更
-        item.ApplyChangeQuantity(quantity);
-        _totalPrice = newTotalPrice;
-
-        AddDomainEvent(
+        // 所有驗證通過，發布事件（事件會透過 Apply 修改狀態）
+        RaiseEvent(
             new CartItemQuantityChangedDomainEvent(
                 CartId: Id,
                 ProductId: productId,
@@ -164,11 +158,8 @@ public class ShoppingCart : AggregateRoot<Guid>
         if (item is null)
             return UnitResult.Failure<Error>(Errors.ItemNotFound);
 
-        // 移除商品並更新總金額
-        _items.Remove(item);
-        _totalPrice -= item.TotalPrice;
-
-        AddDomainEvent(
+        // 發布事件（事件會透過 Apply 修改狀態）
+        RaiseEvent(
             new CartItemRemovedDomainEvent(
                 CartId: Id,
                 ProductId: productId
@@ -200,11 +191,8 @@ public class ShoppingCart : AggregateRoot<Guid>
         if (decideResult.IsFailure)
             return UnitResult.Failure<Error>(decideResult.Error);
 
-        // 所有驗證通過，套用變更
-        item.ApplyDiscountChange(discountPercentage);
-        _totalPrice = _totalPrice - oldTotalPrice + item.TotalPrice;
-
-        AddDomainEvent(
+        // 所有驗證通過，發布事件（事件會透過 Apply 修改狀態）
+        RaiseEvent(
             new CartItemDiscountAppliedDomainEvent(
                 CartId: Id,
                 ProductId: productId,
@@ -236,9 +224,8 @@ public class ShoppingCart : AggregateRoot<Guid>
                 return UnitResult.Failure<Error>(stockCheckResult.Error);
         }
 
-        _isCheckedOut = true;
-
-        AddDomainEvent(
+        // 發布事件（事件會透過 Apply 修改狀態）
+        RaiseEvent(
             new CartCheckedOutDomainEvent(
                 CartId: Id,
                 TotalPrice: _totalPrice,
@@ -258,13 +245,80 @@ public class ShoppingCart : AggregateRoot<Guid>
         if (_isCheckedOut)
             return UnitResult.Failure<Error>(Errors.CartAlreadyCheckedOut);
 
-        _items.Clear();
-        _totalPrice = 0;
-
-        AddDomainEvent(
+        // 發布事件（事件會透過 Apply 修改狀態）
+        RaiseEvent(
             new CartClearedDomainEvent(CartId: Id)
         );
 
         return UnitResult.Success<Error>();
+    }
+
+    /// <summary>
+    /// 應用事件修改狀態（只修改狀態，不做驗證、不做計算）。
+    /// </summary>
+    protected override void Apply(IDomainEvent domainEvent)
+    {
+        switch (domainEvent)
+        {
+            case CartItemAddedDomainEvent e:
+                Apply(e);
+                break;
+            case CartItemQuantityChangedDomainEvent e:
+                Apply(e);
+                break;
+            case CartItemRemovedDomainEvent e:
+                Apply(e);
+                break;
+            case CartItemDiscountAppliedDomainEvent e:
+                Apply(e);
+                break;
+            case CartCheckedOutDomainEvent e:
+                Apply(e);
+                break;
+            case CartClearedDomainEvent e:
+                Apply(e);
+                break;
+        }
+    }
+
+    private void Apply(CartItemAddedDomainEvent e)
+    {
+        var newItem = CartItem.ApplyCreate(e.ProductId, e.Quantity, e.UnitPrice);
+        _items.Add(newItem);
+        _totalPrice += newItem.TotalPrice;
+    }
+
+    private void Apply(CartItemQuantityChangedDomainEvent e)
+    {
+        var item = _items.Single(i => i.ProductId == e.ProductId);
+        var oldTotalPrice = item.TotalPrice;
+        item.ApplyChangeQuantity(e.Quantity);
+        _totalPrice = _totalPrice - oldTotalPrice + item.TotalPrice;
+    }
+
+    private void Apply(CartItemRemovedDomainEvent e)
+    {
+        var item = _items.Single(i => i.ProductId == e.ProductId);
+        _items.Remove(item);
+        _totalPrice -= item.TotalPrice;
+    }
+
+    private void Apply(CartItemDiscountAppliedDomainEvent e)
+    {
+        var item = _items.Single(i => i.ProductId == e.ProductId);
+        var oldPrice = item.TotalPrice;
+        item.ApplyDiscountChange(e.DiscountPercentage);
+        _totalPrice = _totalPrice - oldPrice + item.TotalPrice;
+    }
+
+    private void Apply(CartCheckedOutDomainEvent _)
+    {
+        _isCheckedOut = true;
+    }
+
+    private void Apply(CartClearedDomainEvent _)
+    {
+        _items.Clear();
+        _totalPrice = 0;
     }
 }

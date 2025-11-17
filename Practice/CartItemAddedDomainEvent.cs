@@ -6,7 +6,8 @@ namespace Practice;
 public sealed record CartItemAddedDomainEvent(
     Guid CartId,
     int ProductId,
-    int Quantity
+    int Quantity,
+    decimal UnitPrice
 ) : IDomainEvent
 {
     public DateTime OccurredOn { get; } = DateTime.UtcNow;
