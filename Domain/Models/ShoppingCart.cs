@@ -82,21 +82,17 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     public UnitResult<Error> ChangeItemQuantity(int productId, int quantity)
     {
         return ValidateNotCheckedOut()
-            .Bind(() => ValidateItemExists(productId))
-            .Bind(() =>
-            {
-                var item = _items.Single(i => i.ProductId == productId);
-                return item.DecideChangeQuantity(quantity)
-                    .Bind(() => ValidateTotalQuantityForChange(productId, quantity))
-                    .Bind(() => ValidateTotalPriceForChange(productId, quantity))
-                    .Tap(() => RaiseEvent(
-                        new CartItemQuantityChangedDomainEvent(
-                            CartId: Id,
-                            ProductId: productId,
-                            Quantity: quantity
-                        )
-                    ));
-            });
+            .Bind(() => FindItem(productId))
+            .Bind(item => item.DecideChangeQuantity(quantity)
+                .Bind(() => ValidateTotalQuantityForChange(item, quantity))
+                .Bind(() => ValidateTotalPriceForChange(item, quantity))
+                .Tap(() => RaiseEvent(
+                    new CartItemQuantityChangedDomainEvent(
+                        CartId: Id,
+                        ProductId: productId,
+                        Quantity: quantity
+                    )
+                )));
     }
 
     /// <summary>
@@ -105,8 +101,8 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     public UnitResult<Error> RemoveItem(int productId)
     {
         return ValidateNotCheckedOut()
-            .Bind(() => ValidateItemExists(productId))
-            .Tap(() => RaiseEvent(
+            .Bind(() => FindItem(productId))
+            .Tap(_ => RaiseEvent(
                 new CartItemRemovedDomainEvent(
                     CartId: Id,
                     ProductId: productId
@@ -120,19 +116,15 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     public UnitResult<Error> ApplyDiscount(int productId, decimal discountPercentage)
     {
         return ValidateNotCheckedOut()
-            .Bind(() => ValidateItemExists(productId))
-            .Bind(() =>
-            {
-                var item = _items.Single(i => i.ProductId == productId);
-                return item.DecideApplyDiscount(discountPercentage)
-                    .Tap(() => RaiseEvent(
-                        new CartItemDiscountAppliedDomainEvent(
-                            CartId: Id,
-                            ProductId: productId,
-                            DiscountPercentage: discountPercentage
-                        )
-                    ));
-            });
+            .Bind(() => FindItem(productId))
+            .Bind(item => item.DecideApplyDiscount(discountPercentage)
+                .Tap(() => RaiseEvent(
+                    new CartItemDiscountAppliedDomainEvent(
+                        CartId: Id,
+                        ProductId: productId,
+                        DiscountPercentage: discountPercentage
+                    )
+                )));
     }
 
     /// <summary>
@@ -277,18 +269,17 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
         return UnitResult.Success<Error>();
     }
 
-    private UnitResult<Error> ValidateItemExists(int productId)
+    private Result<CartItem, Error> FindItem(int productId)
     {
         var item = _items.SingleOrDefault(i => i.ProductId == productId);
         if (item is null)
-            return UnitResult.Failure<Error>(Domain.Errors.Errors.ItemNotFound);
+            return Result.Failure<CartItem, Error>(Domain.Errors.Errors.ItemNotFound);
 
-        return UnitResult.Success<Error>();
+        return Result.Success<CartItem, Error>(item);
     }
 
-    private UnitResult<Error> ValidateTotalQuantityForChange(int productId, int newQuantity)
+    private UnitResult<Error> ValidateTotalQuantityForChange(CartItem item, int newQuantity)
     {
-        var item = _items.Single(i => i.ProductId == productId);
         var quantityDiff = newQuantity - item.Quantity;
 
         if (TotalQuantity + quantityDiff > MaxTotalQuantity)
@@ -297,9 +288,8 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
         return UnitResult.Success<Error>();
     }
 
-    private UnitResult<Error> ValidateTotalPriceForChange(int productId, int newQuantity)
+    private UnitResult<Error> ValidateTotalPriceForChange(CartItem item, int newQuantity)
     {
-        var item = _items.Single(i => i.ProductId == productId);
         var oldTotalPrice = item.TotalPrice;
         var newItemTotalPrice = item.DiscountedUnitPrice * newQuantity;
         var newTotalPrice = _totalPrice - oldTotalPrice + newItemTotalPrice;
