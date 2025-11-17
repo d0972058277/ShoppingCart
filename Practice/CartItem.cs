@@ -91,9 +91,9 @@ public class CartItem : Entity<Guid>
     }
 
     /// <summary>
-    /// 變更商品數量。
+    /// 決定是否可以變更商品數量。
     /// </summary>
-    public UnitResult<Error> ChangeQuantity(int quantity)
+    public UnitResult<Error> DecideChangeQuantity(int quantity)
     {
         // Validation 1: 檢查數量範圍
         if (quantity < MinQuantity)
@@ -103,14 +103,33 @@ public class CartItem : Entity<Guid>
         if (quantity > MaxQuantity)
             return UnitResult.Failure<Error>(Errors.MaxItemQuantityExceeded);
 
-        Quantity = quantity;
         return UnitResult.Success<Error>();
     }
 
     /// <summary>
-    /// 套用折扣。
+    /// 套用數量變更（不可失敗）。
     /// </summary>
-    public UnitResult<Error> ApplyDiscount(decimal discountPercentage)
+    private void ApplyChangeQuantity(int quantity)
+    {
+        Quantity = quantity;
+    }
+
+    /// <summary>
+    /// 變更商品數量（結合 Decide 和 Apply）。
+    /// </summary>
+    public UnitResult<Error> ChangeQuantity(int quantity)
+    {
+        var result = DecideChangeQuantity(quantity);
+        if (result.IsSuccess)
+            ApplyChangeQuantity(quantity);
+
+        return result;
+    }
+
+    /// <summary>
+    /// 決定是否可以套用折扣。
+    /// </summary>
+    public UnitResult<Error> DecideApplyDiscount(decimal discountPercentage)
     {
         // Validation 1: 檢查折扣範圍
         if (discountPercentage < MinDiscountPercentage)
@@ -127,14 +146,33 @@ public class CartItem : Entity<Guid>
         if (discountPercentage < DiscountPercentage)
             return UnitResult.Failure<Error>(Errors.DiscountCannotBeReduced);
 
-        DiscountPercentage = discountPercentage;
         return UnitResult.Success<Error>();
     }
 
     /// <summary>
-    /// 更新單價（用於價格變動時）。
+    /// 套用折扣變更（不可失敗）。
     /// </summary>
-    public UnitResult<Error> UpdateUnitPrice(decimal newUnitPrice)
+    private void ApplyDiscountChange(decimal discountPercentage)
+    {
+        DiscountPercentage = discountPercentage;
+    }
+
+    /// <summary>
+    /// 套用折扣（結合 Decide 和 Apply）。
+    /// </summary>
+    public UnitResult<Error> ApplyDiscount(decimal discountPercentage)
+    {
+        var result = DecideApplyDiscount(discountPercentage);
+        if (result.IsSuccess)
+            ApplyDiscountChange(discountPercentage);
+
+        return result;
+    }
+
+    /// <summary>
+    /// 決定是否可以更新單價。
+    /// </summary>
+    public UnitResult<Error> DecideUpdateUnitPrice(decimal newUnitPrice)
     {
         // Validation 1: 檢查單價範圍
         if (newUnitPrice < MinUnitPrice)
@@ -147,8 +185,27 @@ public class CartItem : Entity<Guid>
         if (Math.Round(newUnitPrice, 2) != newUnitPrice)
             return UnitResult.Failure<Error>(Errors.InvalidUnitPriceDecimalPlaces);
 
-        UnitPrice = newUnitPrice;
         return UnitResult.Success<Error>();
+    }
+
+    /// <summary>
+    /// 套用單價更新（不可失敗）。
+    /// </summary>
+    private void ApplyUpdateUnitPrice(decimal newUnitPrice)
+    {
+        UnitPrice = newUnitPrice;
+    }
+
+    /// <summary>
+    /// 更新單價（用於價格變動時，結合 Decide 和 Apply）。
+    /// </summary>
+    public UnitResult<Error> UpdateUnitPrice(decimal newUnitPrice)
+    {
+        var result = DecideUpdateUnitPrice(newUnitPrice);
+        if (result.IsSuccess)
+            ApplyUpdateUnitPrice(newUnitPrice);
+
+        return result;
     }
 
     /// <summary>
