@@ -57,45 +57,20 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     /// </summary>
     public UnitResult<Error> AddItem(int productId, int quantity, decimal unitPrice)
     {
-        // Validation 1: 檢查購物車是否已結帳
-        if (_isCheckedOut)
-            return UnitResult.Failure<Error>(Errors.CartAlreadyCheckedOut);
-
-        // Validation 2: 檢查是否為重複商品
-        if (_items.Any(i => i.ProductId == productId))
-            return UnitResult.Failure<Error>(Errors.DuplicateProduct);
-
-        // Validation 3: 檢查購物車項目數量上限
-        if (_items.Count >= MaxItemsCount)
-            return UnitResult.Failure<Error>(Errors.MaxItemsCountExceeded);
-
-        // Validation 4: 驗證是否可以建立 CartItem（使用 Decide，不建立物件）
-        var decideResult = CartItem.DecideCreate(productId, quantity, unitPrice);
-        if (decideResult.IsFailure)
-            return UnitResult.Failure<Error>(decideResult.Error);
-
-        // Validation 5: 檢查總數量上限
-        if (TotalQuantity + quantity > MaxTotalQuantity)
-            return UnitResult.Failure<Error>(Errors.MaxTotalQuantityExceeded);
-
-        // Validation 6: 計算並檢查總金額上限
-        var discountedUnitPrice = unitPrice; // 新項目折扣為 0
-        var itemTotalPrice = discountedUnitPrice * quantity;
-        var newTotalPrice = _totalPrice + itemTotalPrice;
-        if (newTotalPrice > MaxTotalPrice)
-            return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
-
-        // 所有驗證通過，發布事件（事件會透過 Apply 修改狀態）
-        RaiseEvent(
-            new CartItemAddedDomainEvent(
-                CartId: Id,
-                ProductId: productId,
-                Quantity: quantity,
-                UnitPrice: unitPrice
-            )
-        );
-
-        return UnitResult.Success<Error>();
+        return ValidateNotCheckedOut()
+            .Bind(() => ValidateNotDuplicateProduct(productId))
+            .Bind(() => ValidateMaxItemsCount())
+            .Bind(() => CartItem.DecideCreate(productId, quantity, unitPrice))
+            .Bind(() => ValidateTotalQuantity(quantity))
+            .Bind(() => ValidateTotalPriceForAdd(quantity, unitPrice))
+            .Tap(() => RaiseEvent(
+                new CartItemAddedDomainEvent(
+                    CartId: Id,
+                    ProductId: productId,
+                    Quantity: quantity,
+                    UnitPrice: unitPrice
+                )
+            ));
     }
 
     /// <summary>
@@ -103,45 +78,22 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     /// </summary>
     public UnitResult<Error> ChangeItemQuantity(int productId, int quantity)
     {
-        // Validation 1: 檢查購物車是否已結帳
-        if (_isCheckedOut)
-            return UnitResult.Failure<Error>(Errors.CartAlreadyCheckedOut);
-
-        // Validation 2: 檢查商品是否存在
-        var item = _items.SingleOrDefault(i => i.ProductId == productId);
-        if (item is null)
-            return UnitResult.Failure<Error>(Errors.ItemNotFound);
-
-        // 保存舊值用於計算
-        var oldQuantity = item.Quantity;
-        var oldTotalPrice = item.TotalPrice;
-
-        // Validation 3: 驗證數量變更是否有效（使用 Decide，不改變狀態）
-        var decideResult = item.DecideChangeQuantity(quantity);
-        if (decideResult.IsFailure)
-            return UnitResult.Failure<Error>(decideResult.Error);
-
-        // Validation 4: 檢查變更後的總數量是否超過上限
-        var quantityDiff = quantity - oldQuantity;
-        if (TotalQuantity + quantityDiff > MaxTotalQuantity)
-            return UnitResult.Failure<Error>(Errors.MaxTotalQuantityExceeded);
-
-        // Validation 5: 計算變更後的總金額並檢查是否超過上限
-        var newItemTotalPrice = item.DiscountedUnitPrice * quantity;
-        var newTotalPrice = _totalPrice - oldTotalPrice + newItemTotalPrice;
-        if (newTotalPrice > MaxTotalPrice)
-            return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
-
-        // 所有驗證通過，發布事件（事件會透過 Apply 修改狀態）
-        RaiseEvent(
-            new CartItemQuantityChangedDomainEvent(
-                CartId: Id,
-                ProductId: productId,
-                Quantity: quantity
-            )
-        );
-
-        return UnitResult.Success<Error>();
+        return ValidateNotCheckedOut()
+            .Bind(() => ValidateItemExists(productId))
+            .Bind(() =>
+            {
+                var item = _items.Single(i => i.ProductId == productId);
+                return item.DecideChangeQuantity(quantity)
+                    .Bind(() => ValidateTotalQuantityForChange(productId, quantity))
+                    .Bind(() => ValidateTotalPriceForChange(productId, quantity))
+                    .Tap(() => RaiseEvent(
+                        new CartItemQuantityChangedDomainEvent(
+                            CartId: Id,
+                            ProductId: productId,
+                            Quantity: quantity
+                        )
+                    ));
+            });
     }
 
     /// <summary>
@@ -149,24 +101,14 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     /// </summary>
     public UnitResult<Error> RemoveItem(int productId)
     {
-        // Validation 1: 檢查購物車是否已結帳
-        if (_isCheckedOut)
-            return UnitResult.Failure<Error>(Errors.CartAlreadyCheckedOut);
-
-        // Validation 2: 檢查商品是否存在
-        var item = _items.SingleOrDefault(i => i.ProductId == productId);
-        if (item is null)
-            return UnitResult.Failure<Error>(Errors.ItemNotFound);
-
-        // 發布事件（事件會透過 Apply 修改狀態）
-        RaiseEvent(
-            new CartItemRemovedDomainEvent(
-                CartId: Id,
-                ProductId: productId
-            )
-        );
-
-        return UnitResult.Success<Error>();
+        return ValidateNotCheckedOut()
+            .Bind(() => ValidateItemExists(productId))
+            .Tap(() => RaiseEvent(
+                new CartItemRemovedDomainEvent(
+                    CartId: Id,
+                    ProductId: productId
+                )
+            ));
     }
 
     /// <summary>
@@ -174,33 +116,20 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     /// </summary>
     public UnitResult<Error> ApplyDiscount(int productId, decimal discountPercentage)
     {
-        // Validation 1: 檢查購物車是否已結帳
-        if (_isCheckedOut)
-            return UnitResult.Failure<Error>(Errors.CartAlreadyCheckedOut);
-
-        // Validation 2: 檢查商品是否存在
-        var item = _items.SingleOrDefault(i => i.ProductId == productId);
-        if (item is null)
-            return UnitResult.Failure<Error>(Errors.ItemNotFound);
-
-        // 保存舊值
-        var oldTotalPrice = item.TotalPrice;
-
-        // Validation 3: 驗證折扣是否有效（使用 Decide，不改變狀態）
-        var decideResult = item.DecideApplyDiscount(discountPercentage);
-        if (decideResult.IsFailure)
-            return UnitResult.Failure<Error>(decideResult.Error);
-
-        // 所有驗證通過，發布事件（事件會透過 Apply 修改狀態）
-        RaiseEvent(
-            new CartItemDiscountAppliedDomainEvent(
-                CartId: Id,
-                ProductId: productId,
-                DiscountPercentage: discountPercentage
-            )
-        );
-
-        return UnitResult.Success<Error>();
+        return ValidateNotCheckedOut()
+            .Bind(() => ValidateItemExists(productId))
+            .Bind(() =>
+            {
+                var item = _items.Single(i => i.ProductId == productId);
+                return item.DecideApplyDiscount(discountPercentage)
+                    .Tap(() => RaiseEvent(
+                        new CartItemDiscountAppliedDomainEvent(
+                            CartId: Id,
+                            ProductId: productId,
+                            DiscountPercentage: discountPercentage
+                        )
+                    ));
+            });
     }
 
     /// <summary>
@@ -208,32 +137,16 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     /// </summary>
     public UnitResult<Error> Checkout()
     {
-        // Validation 1: 檢查購物車是否已結帳
-        if (_isCheckedOut)
-            return UnitResult.Failure<Error>(Errors.CartAlreadyCheckedOut);
-
-        // Validation 2: 檢查購物車是否為空
-        if (_items.Count == 0)
-            return UnitResult.Failure<Error>(Errors.EmptyCart);
-
-        // Validation 3: 檢查所有商品是否都有庫存（模擬）
-        foreach (var item in _items)
-        {
-            var stockCheckResult = item.ValidateStock();
-            if (stockCheckResult.IsFailure)
-                return UnitResult.Failure<Error>(stockCheckResult.Error);
-        }
-
-        // 發布事件（事件會透過 Apply 修改狀態）
-        RaiseEvent(
-            new CartCheckedOutDomainEvent(
-                CartId: Id,
-                TotalPrice: _totalPrice,
-                ItemCount: _items.Count
-            )
-        );
-
-        return UnitResult.Success<Error>();
+        return ValidateNotCheckedOut()
+            .Bind(() => ValidateNotEmpty())
+            .Bind(() => ValidateAllItemsStock())
+            .Tap(() => RaiseEvent(
+                new CartCheckedOutDomainEvent(
+                    CartId: Id,
+                    TotalPrice: _totalPrice,
+                    ItemCount: _items.Count
+                )
+            ));
     }
 
     /// <summary>
@@ -241,16 +154,10 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     /// </summary>
     public UnitResult<Error> Clear()
     {
-        // Validation 1: 檢查購物車是否已結帳
-        if (_isCheckedOut)
-            return UnitResult.Failure<Error>(Errors.CartAlreadyCheckedOut);
-
-        // 發布事件（事件會透過 Apply 修改狀態）
-        RaiseEvent(
-            new CartClearedDomainEvent(CartId: Id)
-        );
-
-        return UnitResult.Success<Error>();
+        return ValidateNotCheckedOut()
+            .Tap(() => RaiseEvent(
+                new CartClearedDomainEvent(CartId: Id)
+            ));
     }
 
     /// <summary>
@@ -321,4 +228,104 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
         _items.Clear();
         _totalPrice = 0;
     }
+
+    #region Validation Methods
+
+    private UnitResult<Error> ValidateNotCheckedOut()
+    {
+        if (_isCheckedOut)
+            return UnitResult.Failure<Error>(Errors.CartAlreadyCheckedOut);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateNotDuplicateProduct(int productId)
+    {
+        if (_items.Any(i => i.ProductId == productId))
+            return UnitResult.Failure<Error>(Errors.DuplicateProduct);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateMaxItemsCount()
+    {
+        if (_items.Count >= MaxItemsCount)
+            return UnitResult.Failure<Error>(Errors.MaxItemsCountExceeded);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateTotalQuantity(int additionalQuantity)
+    {
+        if (TotalQuantity + additionalQuantity > MaxTotalQuantity)
+            return UnitResult.Failure<Error>(Errors.MaxTotalQuantityExceeded);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateTotalPriceForAdd(int quantity, decimal unitPrice)
+    {
+        var itemTotalPrice = unitPrice * quantity;
+        var newTotalPrice = _totalPrice + itemTotalPrice;
+
+        if (newTotalPrice > MaxTotalPrice)
+            return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateItemExists(int productId)
+    {
+        var item = _items.SingleOrDefault(i => i.ProductId == productId);
+        if (item is null)
+            return UnitResult.Failure<Error>(Errors.ItemNotFound);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateTotalQuantityForChange(int productId, int newQuantity)
+    {
+        var item = _items.Single(i => i.ProductId == productId);
+        var quantityDiff = newQuantity - item.Quantity;
+
+        if (TotalQuantity + quantityDiff > MaxTotalQuantity)
+            return UnitResult.Failure<Error>(Errors.MaxTotalQuantityExceeded);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateTotalPriceForChange(int productId, int newQuantity)
+    {
+        var item = _items.Single(i => i.ProductId == productId);
+        var oldTotalPrice = item.TotalPrice;
+        var newItemTotalPrice = item.DiscountedUnitPrice * newQuantity;
+        var newTotalPrice = _totalPrice - oldTotalPrice + newItemTotalPrice;
+
+        if (newTotalPrice > MaxTotalPrice)
+            return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateNotEmpty()
+    {
+        if (_items.Count == 0)
+            return UnitResult.Failure<Error>(Errors.EmptyCart);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateAllItemsStock()
+    {
+        foreach (var item in _items)
+        {
+            var stockCheckResult = item.ValidateStock();
+            if (stockCheckResult.IsFailure)
+                return UnitResult.Failure<Error>(stockCheckResult.Error);
+        }
+
+        return UnitResult.Success<Error>();
+    }
+
+    #endregion
 }
