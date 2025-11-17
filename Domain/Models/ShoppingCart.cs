@@ -84,7 +84,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
         return ValidateNotCheckedOut()
             .Bind(() => FindItem(productId))
             .Bind(item => item.DecideChangeQuantity(quantity)
-                .Bind(() => ValidateTotalQuantityForChange(item, quantity))
+                .Bind(() => ValidateTotalQuantity(quantity - item.Quantity))
                 .Bind(() => ValidateTotalPriceForChange(item, quantity))
                 .Tap(() => RaiseEvent(
                     new CartItemQuantityChangedDomainEvent(
@@ -134,7 +134,6 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     {
         return ValidateNotCheckedOut()
             .Bind(() => ValidateNotEmpty())
-            .Bind(() => ValidateAllItemsStock())
             .Tap(() => RaiseEvent(
                 new CartCheckedOutDomainEvent(
                     CartId: Id,
@@ -192,7 +191,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
 
     private void Apply(CartItemQuantityChangedDomainEvent e)
     {
-        var item = _items.Single(i => i.ProductId == e.ProductId);
+        var item = GetItemByProductId(e.ProductId);
         var oldTotalPrice = item.TotalPrice;
         item.ApplyChangeQuantity(e.Quantity);
         _totalPrice = _totalPrice - oldTotalPrice + item.TotalPrice;
@@ -200,14 +199,14 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
 
     private void Apply(CartItemRemovedDomainEvent e)
     {
-        var item = _items.Single(i => i.ProductId == e.ProductId);
+        var item = GetItemByProductId(e.ProductId);
         _items.Remove(item);
         _totalPrice -= item.TotalPrice;
     }
 
     private void Apply(CartItemDiscountAppliedDomainEvent e)
     {
-        var item = _items.Single(i => i.ProductId == e.ProductId);
+        var item = GetItemByProductId(e.ProductId);
         var oldPrice = item.TotalPrice;
         item.ApplyDiscountChange(e.DiscountPercentage);
         _totalPrice = _totalPrice - oldPrice + item.TotalPrice;
@@ -250,9 +249,9 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
         return UnitResult.Success<Error>();
     }
 
-    private UnitResult<Error> ValidateTotalQuantity(int additionalQuantity)
+    private UnitResult<Error> ValidateTotalQuantity(int quantityDifference)
     {
-        if (TotalQuantity + additionalQuantity > MaxTotalQuantity)
+        if (TotalQuantity + quantityDifference > MaxTotalQuantity)
             return UnitResult.Failure<Error>(Domain.Errors.Errors.MaxTotalQuantityExceeded);
 
         return UnitResult.Success<Error>();
@@ -278,20 +277,15 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
         return Result.Success<CartItem, Error>(item);
     }
 
-    private UnitResult<Error> ValidateTotalQuantityForChange(CartItem item, int newQuantity)
+    private CartItem GetItemByProductId(int productId)
     {
-        var quantityDiff = newQuantity - item.Quantity;
-
-        if (TotalQuantity + quantityDiff > MaxTotalQuantity)
-            return UnitResult.Failure<Error>(Domain.Errors.Errors.MaxTotalQuantityExceeded);
-
-        return UnitResult.Success<Error>();
+        return _items.Single(i => i.ProductId == productId);
     }
 
     private UnitResult<Error> ValidateTotalPriceForChange(CartItem item, int newQuantity)
     {
         var oldTotalPrice = item.TotalPrice;
-        var newItemTotalPrice = item.DiscountedUnitPrice * newQuantity;
+        var newItemTotalPrice = item.CalculateTotalPriceWithQuantity(newQuantity);
         var newTotalPrice = _totalPrice - oldTotalPrice + newItemTotalPrice;
 
         if (newTotalPrice > MaxTotalPrice)
@@ -304,18 +298,6 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     {
         if (_items.Count == 0)
             return UnitResult.Failure<Error>(Domain.Errors.Errors.EmptyCart);
-
-        return UnitResult.Success<Error>();
-    }
-
-    private UnitResult<Error> ValidateAllItemsStock()
-    {
-        foreach (var item in _items)
-        {
-            var stockCheckResult = item.ValidateStock();
-            if (stockCheckResult.IsFailure)
-                return UnitResult.Failure<Error>(stockCheckResult.Error);
-        }
 
         return UnitResult.Success<Error>();
     }

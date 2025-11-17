@@ -115,32 +115,11 @@ public class CartItem : Entity<Guid>
     }
 
     /// <summary>
-    /// 決定是否可以更新單價。
+    /// 計算指定數量的總價（使用折扣後單價）。
     /// </summary>
-    public UnitResult<Error> DecideUpdateUnitPrice(decimal newUnitPrice)
+    public decimal CalculateTotalPriceWithQuantity(int quantity)
     {
-        return ValidateUnitPrice(newUnitPrice);
-    }
-
-    /// <summary>
-    /// 套用單價更新（不可失敗）。
-    /// </summary>
-    public void ApplyUpdateUnitPrice(decimal newUnitPrice)
-    {
-        UnitPrice = newUnitPrice;
-    }
-
-    /// <summary>
-    /// 驗證庫存（模擬）。
-    /// </summary>
-    public UnitResult<Error> ValidateStock()
-    {
-        // 模擬庫存檢查：假設商品 ID 為偶數的有庫存
-        // 這只是示範，實際應該查詢庫存系統
-        if (ProductId % 2 == 1 && Quantity > 50)
-            return UnitResult.Failure<Error>(Domain.Errors.Errors.InsufficientStock);
-
-        return UnitResult.Success<Error>();
+        return DiscountedUnitPrice * quantity;
     }
 
     #region Validation Methods

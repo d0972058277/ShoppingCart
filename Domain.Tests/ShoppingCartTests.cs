@@ -635,21 +635,6 @@ public class ShoppingCartTests
     }
 
     [Fact]
-    public void Checkout_WithInsufficientStock_ShouldFail()
-    {
-        // Arrange
-        var cart = ShoppingCart.Create();
-        cart.AddItem(productId: 101, quantity: 51, unitPrice: 99.99m); // Odd product ID with quantity > 50
-
-        // Act
-        var result = cart.Checkout();
-
-        // Assert
-        result.IsFailure.Should().BeTrue();
-        result.Error.Should().Be(Errors.Errors.InsufficientStock);
-    }
-
-    [Fact]
     public void Checkout_ShouldRaiseCartCheckedOutEvent()
     {
         // Arrange

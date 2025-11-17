@@ -86,9 +86,4 @@ public static class Errors
         "CartItem.DiscountCannotBeReduced",
         "無法降低已套用的折扣"
     );
-
-    public static readonly Error InsufficientStock = new(
-        "CartItem.InsufficientStock",
-        "商品庫存不足"
-    );
 }
