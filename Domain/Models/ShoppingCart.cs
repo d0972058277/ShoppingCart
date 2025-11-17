@@ -1,6 +1,9 @@
 using CSharpFunctionalExtensions;
+using Domain.Primitives;
+using Domain.Errors;
+using Domain.Events;
 
-namespace Practice;
+namespace Domain.Models;
 
 /// <summary>
 /// 購物車聚合根。
@@ -234,7 +237,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     private UnitResult<Error> ValidateNotCheckedOut()
     {
         if (_isCheckedOut)
-            return UnitResult.Failure<Error>(Errors.CartAlreadyCheckedOut);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.CartAlreadyCheckedOut);
 
         return UnitResult.Success<Error>();
     }
@@ -242,7 +245,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     private UnitResult<Error> ValidateNotDuplicateProduct(int productId)
     {
         if (_items.Any(i => i.ProductId == productId))
-            return UnitResult.Failure<Error>(Errors.DuplicateProduct);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.DuplicateProduct);
 
         return UnitResult.Success<Error>();
     }
@@ -250,7 +253,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     private UnitResult<Error> ValidateMaxItemsCount()
     {
         if (_items.Count >= MaxItemsCount)
-            return UnitResult.Failure<Error>(Errors.MaxItemsCountExceeded);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.MaxItemsCountExceeded);
 
         return UnitResult.Success<Error>();
     }
@@ -258,7 +261,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     private UnitResult<Error> ValidateTotalQuantity(int additionalQuantity)
     {
         if (TotalQuantity + additionalQuantity > MaxTotalQuantity)
-            return UnitResult.Failure<Error>(Errors.MaxTotalQuantityExceeded);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.MaxTotalQuantityExceeded);
 
         return UnitResult.Success<Error>();
     }
@@ -269,7 +272,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
         var newTotalPrice = _totalPrice + itemTotalPrice;
 
         if (newTotalPrice > MaxTotalPrice)
-            return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.MaxTotalPriceExceeded);
 
         return UnitResult.Success<Error>();
     }
@@ -278,7 +281,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     {
         var item = _items.SingleOrDefault(i => i.ProductId == productId);
         if (item is null)
-            return UnitResult.Failure<Error>(Errors.ItemNotFound);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.ItemNotFound);
 
         return UnitResult.Success<Error>();
     }
@@ -289,7 +292,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
         var quantityDiff = newQuantity - item.Quantity;
 
         if (TotalQuantity + quantityDiff > MaxTotalQuantity)
-            return UnitResult.Failure<Error>(Errors.MaxTotalQuantityExceeded);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.MaxTotalQuantityExceeded);
 
         return UnitResult.Success<Error>();
     }
@@ -302,7 +305,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
         var newTotalPrice = _totalPrice - oldTotalPrice + newItemTotalPrice;
 
         if (newTotalPrice > MaxTotalPrice)
-            return UnitResult.Failure<Error>(Errors.MaxTotalPriceExceeded);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.MaxTotalPriceExceeded);
 
         return UnitResult.Success<Error>();
     }
@@ -310,7 +313,7 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     private UnitResult<Error> ValidateNotEmpty()
     {
         if (_items.Count == 0)
-            return UnitResult.Failure<Error>(Errors.EmptyCart);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.EmptyCart);
 
         return UnitResult.Success<Error>();
     }

@@ -1,4 +1,4 @@
-namespace Practice;
+namespace Domain.Errors;
 
 /// <summary>
 /// 代表領域錯誤的不可變物件。

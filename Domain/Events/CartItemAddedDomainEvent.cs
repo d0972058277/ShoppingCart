@@ -1,4 +1,6 @@
-namespace Practice;
+using Domain.Primitives;
+
+namespace Domain.Events;
 
 /// <summary>
 /// 購物車項目已加入的領域事件。

@@ -1,4 +1,4 @@
-namespace Practice;
+namespace Domain.Primitives;
 
 /// <summary>
 /// 代表系統中發生的領域事件。

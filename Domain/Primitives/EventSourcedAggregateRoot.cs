@@ -1,4 +1,4 @@
-namespace Practice;
+namespace Domain.Primitives;
 
 /// <summary>
 /// Event Sourcing 聚合根基類。

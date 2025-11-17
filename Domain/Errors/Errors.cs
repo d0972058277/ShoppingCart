@@ -1,4 +1,4 @@
-namespace Practice;
+namespace Domain.Errors;
 
 /// <summary>
 /// 定義購物車領域的錯誤清單。

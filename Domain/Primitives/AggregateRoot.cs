@@ -1,6 +1,6 @@
 using CSharpFunctionalExtensions;
 
-namespace Practice;
+namespace Domain.Primitives;
 
 /// <summary>
 /// 所有聚合根的基底類別。

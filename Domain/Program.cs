@@ -1,4 +1,4 @@
-using Practice;
+using Domain.Models;
 
 Console.WriteLine("=== 購物車複雜驗證示範 ===\n");
 

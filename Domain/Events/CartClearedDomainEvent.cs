@@ -1,4 +1,6 @@
-namespace Practice;
+using Domain.Primitives;
+
+namespace Domain.Events;
 
 /// <summary>
 /// 購物車已清空的領域事件。

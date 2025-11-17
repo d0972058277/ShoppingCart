@@ -1,6 +1,8 @@
 using CSharpFunctionalExtensions;
+using Domain.Primitives;
+using Domain.Errors;
 
-namespace Practice;
+namespace Domain.Models;
 
 /// <summary>
 /// 購物車項目實體。
@@ -136,7 +138,7 @@ public class CartItem : Entity<Guid>
         // 模擬庫存檢查：假設商品 ID 為偶數的有庫存
         // 這只是示範，實際應該查詢庫存系統
         if (ProductId % 2 == 1 && Quantity > 50)
-            return UnitResult.Failure<Error>(Errors.InsufficientStock);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.InsufficientStock);
 
         return UnitResult.Success<Error>();
     }
@@ -146,7 +148,7 @@ public class CartItem : Entity<Guid>
     private static UnitResult<Error> ValidateProductId(int productId)
     {
         if (productId <= 0)
-            return UnitResult.Failure<Error>(Errors.InvalidProductId);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.InvalidProductId);
 
         return UnitResult.Success<Error>();
     }
@@ -154,10 +156,10 @@ public class CartItem : Entity<Guid>
     private static UnitResult<Error> ValidateQuantity(int quantity)
     {
         if (quantity < MinQuantity)
-            return UnitResult.Failure<Error>(Errors.InvalidQuantity);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.InvalidQuantity);
 
         if (quantity > MaxQuantity)
-            return UnitResult.Failure<Error>(Errors.MaxItemQuantityExceeded);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.MaxItemQuantityExceeded);
 
         return UnitResult.Success<Error>();
     }
@@ -165,13 +167,13 @@ public class CartItem : Entity<Guid>
     private static UnitResult<Error> ValidateUnitPrice(decimal unitPrice)
     {
         if (unitPrice < MinUnitPrice)
-            return UnitResult.Failure<Error>(Errors.InvalidUnitPrice);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.InvalidUnitPrice);
 
         if (unitPrice > MaxUnitPrice)
-            return UnitResult.Failure<Error>(Errors.MaxUnitPriceExceeded);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.MaxUnitPriceExceeded);
 
         if (Math.Round(unitPrice, 2) != unitPrice)
-            return UnitResult.Failure<Error>(Errors.InvalidUnitPriceDecimalPlaces);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.InvalidUnitPriceDecimalPlaces);
 
         return UnitResult.Success<Error>();
     }
@@ -179,10 +181,10 @@ public class CartItem : Entity<Guid>
     private static UnitResult<Error> ValidateDiscountRange(decimal discountPercentage)
     {
         if (discountPercentage < MinDiscountPercentage)
-            return UnitResult.Failure<Error>(Errors.InvalidDiscountPercentage);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.InvalidDiscountPercentage);
 
         if (discountPercentage > MaxDiscountPercentage)
-            return UnitResult.Failure<Error>(Errors.InvalidDiscountPercentage);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.InvalidDiscountPercentage);
 
         return UnitResult.Success<Error>();
     }
@@ -190,7 +192,7 @@ public class CartItem : Entity<Guid>
     private static UnitResult<Error> ValidateDiscountDecimalPlaces(decimal discountPercentage)
     {
         if (Math.Round(discountPercentage, 2) != discountPercentage)
-            return UnitResult.Failure<Error>(Errors.InvalidDiscountDecimalPlaces);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.InvalidDiscountDecimalPlaces);
 
         return UnitResult.Success<Error>();
     }
@@ -198,7 +200,7 @@ public class CartItem : Entity<Guid>
     private UnitResult<Error> ValidateDiscountNotReduced(decimal discountPercentage)
     {
         if (discountPercentage < DiscountPercentage)
-            return UnitResult.Failure<Error>(Errors.DiscountCannotBeReduced);
+            return UnitResult.Failure<Error>(Domain.Errors.Errors.DiscountCannotBeReduced);
 
         return UnitResult.Success<Error>();
     }

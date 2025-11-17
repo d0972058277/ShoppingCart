@@ -1,4 +1,6 @@
-namespace Practice;
+using Domain.Primitives;
+
+namespace Domain.Events;
 
 /// <summary>
 /// 購物車項目已套用折扣的領域事件。
