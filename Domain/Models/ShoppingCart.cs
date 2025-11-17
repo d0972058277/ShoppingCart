@@ -86,13 +86,14 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
             .Bind(item => item.DecideChangeQuantity(quantity)
                 .Bind(() => ValidateTotalQuantity(quantity - item.Quantity))
                 .Bind(() => ValidateTotalPriceForChange(item, quantity))
-                .Tap(() => RaiseEvent(
-                    new CartItemQuantityChangedDomainEvent(
-                        CartId: Id,
-                        ProductId: productId,
-                        Quantity: quantity
-                    )
-                )));
+            )
+            .Tap(() => RaiseEvent(
+                new CartItemQuantityChangedDomainEvent(
+                    CartId: Id,
+                    ProductId: productId,
+                    Quantity: quantity
+                )
+            ));
     }
 
     /// <summary>
@@ -117,14 +118,14 @@ public class ShoppingCart : EventSourcedAggregateRoot<Guid>
     {
         return ValidateNotCheckedOut()
             .Bind(() => FindItem(productId))
-            .Bind(item => item.DecideApplyDiscount(discountPercentage)
-                .Tap(() => RaiseEvent(
-                    new CartItemDiscountAppliedDomainEvent(
-                        CartId: Id,
-                        ProductId: productId,
-                        DiscountPercentage: discountPercentage
-                    )
-                )));
+            .Bind(item => item.DecideApplyDiscount(discountPercentage))
+            .Tap(() => RaiseEvent(
+                new CartItemDiscountAppliedDomainEvent(
+                    CartId: Id,
+                    ProductId: productId,
+                    DiscountPercentage: discountPercentage
+                )
+            ));
     }
 
     /// <summary>
