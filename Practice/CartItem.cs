@@ -65,29 +65,9 @@ public class CartItem : Entity<Guid>
     /// </summary>
     public static UnitResult<Error> DecideCreate(int productId, int quantity, decimal unitPrice)
     {
-        // Validation 1: 檢查商品 ID
-        if (productId <= 0)
-            return UnitResult.Failure<Error>(Errors.InvalidProductId);
-
-        // Validation 2: 檢查數量範圍
-        if (quantity < MinQuantity)
-            return UnitResult.Failure<Error>(Errors.InvalidQuantity);
-
-        if (quantity > MaxQuantity)
-            return UnitResult.Failure<Error>(Errors.MaxItemQuantityExceeded);
-
-        // Validation 3: 檢查單價範圍
-        if (unitPrice < MinUnitPrice)
-            return UnitResult.Failure<Error>(Errors.InvalidUnitPrice);
-
-        if (unitPrice > MaxUnitPrice)
-            return UnitResult.Failure<Error>(Errors.MaxUnitPriceExceeded);
-
-        // Validation 4: 檢查單價小數位數（最多 2 位）
-        if (Math.Round(unitPrice, 2) != unitPrice)
-            return UnitResult.Failure<Error>(Errors.InvalidUnitPriceDecimalPlaces);
-
-        return UnitResult.Success<Error>();
+        return ValidateProductId(productId)
+            .Bind(() => ValidateQuantity(quantity))
+            .Bind(() => ValidateUnitPrice(unitPrice));
     }
 
     /// <summary>
@@ -103,15 +83,7 @@ public class CartItem : Entity<Guid>
     /// </summary>
     public UnitResult<Error> DecideChangeQuantity(int quantity)
     {
-        // Validation 1: 檢查數量範圍
-        if (quantity < MinQuantity)
-            return UnitResult.Failure<Error>(Errors.InvalidQuantity);
-
-        // Validation 2: 檢查數量上限
-        if (quantity > MaxQuantity)
-            return UnitResult.Failure<Error>(Errors.MaxItemQuantityExceeded);
-
-        return UnitResult.Success<Error>();
+        return ValidateQuantity(quantity);
     }
 
     /// <summary>
@@ -127,22 +99,9 @@ public class CartItem : Entity<Guid>
     /// </summary>
     public UnitResult<Error> DecideApplyDiscount(decimal discountPercentage)
     {
-        // Validation 1: 檢查折扣範圍
-        if (discountPercentage < MinDiscountPercentage)
-            return UnitResult.Failure<Error>(Errors.InvalidDiscountPercentage);
-
-        if (discountPercentage > MaxDiscountPercentage)
-            return UnitResult.Failure<Error>(Errors.InvalidDiscountPercentage);
-
-        // Validation 2: 檢查折扣小數位數（最多 2 位）
-        if (Math.Round(discountPercentage, 2) != discountPercentage)
-            return UnitResult.Failure<Error>(Errors.InvalidDiscountDecimalPlaces);
-
-        // Validation 3: 檢查是否已有更優惠的折扣
-        if (discountPercentage < DiscountPercentage)
-            return UnitResult.Failure<Error>(Errors.DiscountCannotBeReduced);
-
-        return UnitResult.Success<Error>();
+        return ValidateDiscountRange(discountPercentage)
+            .Bind(() => ValidateDiscountDecimalPlaces(discountPercentage))
+            .Bind(() => ValidateDiscountNotReduced(discountPercentage));
     }
 
     /// <summary>
@@ -158,18 +117,7 @@ public class CartItem : Entity<Guid>
     /// </summary>
     public UnitResult<Error> DecideUpdateUnitPrice(decimal newUnitPrice)
     {
-        // Validation 1: 檢查單價範圍
-        if (newUnitPrice < MinUnitPrice)
-            return UnitResult.Failure<Error>(Errors.InvalidUnitPrice);
-
-        if (newUnitPrice > MaxUnitPrice)
-            return UnitResult.Failure<Error>(Errors.MaxUnitPriceExceeded);
-
-        // Validation 2: 檢查單價小數位數
-        if (Math.Round(newUnitPrice, 2) != newUnitPrice)
-            return UnitResult.Failure<Error>(Errors.InvalidUnitPriceDecimalPlaces);
-
-        return UnitResult.Success<Error>();
+        return ValidateUnitPrice(newUnitPrice);
     }
 
     /// <summary>
@@ -192,4 +140,68 @@ public class CartItem : Entity<Guid>
 
         return UnitResult.Success<Error>();
     }
+
+    #region Validation Methods
+
+    private static UnitResult<Error> ValidateProductId(int productId)
+    {
+        if (productId <= 0)
+            return UnitResult.Failure<Error>(Errors.InvalidProductId);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private static UnitResult<Error> ValidateQuantity(int quantity)
+    {
+        if (quantity < MinQuantity)
+            return UnitResult.Failure<Error>(Errors.InvalidQuantity);
+
+        if (quantity > MaxQuantity)
+            return UnitResult.Failure<Error>(Errors.MaxItemQuantityExceeded);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private static UnitResult<Error> ValidateUnitPrice(decimal unitPrice)
+    {
+        if (unitPrice < MinUnitPrice)
+            return UnitResult.Failure<Error>(Errors.InvalidUnitPrice);
+
+        if (unitPrice > MaxUnitPrice)
+            return UnitResult.Failure<Error>(Errors.MaxUnitPriceExceeded);
+
+        if (Math.Round(unitPrice, 2) != unitPrice)
+            return UnitResult.Failure<Error>(Errors.InvalidUnitPriceDecimalPlaces);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private static UnitResult<Error> ValidateDiscountRange(decimal discountPercentage)
+    {
+        if (discountPercentage < MinDiscountPercentage)
+            return UnitResult.Failure<Error>(Errors.InvalidDiscountPercentage);
+
+        if (discountPercentage > MaxDiscountPercentage)
+            return UnitResult.Failure<Error>(Errors.InvalidDiscountPercentage);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private static UnitResult<Error> ValidateDiscountDecimalPlaces(decimal discountPercentage)
+    {
+        if (Math.Round(discountPercentage, 2) != discountPercentage)
+            return UnitResult.Failure<Error>(Errors.InvalidDiscountDecimalPlaces);
+
+        return UnitResult.Success<Error>();
+    }
+
+    private UnitResult<Error> ValidateDiscountNotReduced(decimal discountPercentage)
+    {
+        if (discountPercentage < DiscountPercentage)
+            return UnitResult.Failure<Error>(Errors.DiscountCannotBeReduced);
+
+        return UnitResult.Success<Error>();
+    }
+
+    #endregion
 }
